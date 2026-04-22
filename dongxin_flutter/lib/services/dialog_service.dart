@@ -65,6 +65,9 @@ class DialogService {
     } on PlatformException catch (e) {
       lastError = 'init: ${e.code} ${e.message}';
       return false;
+    } catch (e) {
+      lastError = 'init: $e';
+      return false;
     }
   }
 
@@ -87,6 +90,9 @@ class DialogService {
       return result == true;
     } on PlatformException catch (e) {
       lastError = 'start: ${e.code} ${e.message}';
+      return false;
+    } catch (e) {
+      lastError = 'start: $e';
       return false;
     }
   }

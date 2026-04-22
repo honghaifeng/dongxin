@@ -193,11 +193,11 @@ class _RecordButtonState extends State<RecordButton>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Listener(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => widget.onPressStart(),
-      onTapUp: (_) => widget.onPressEnd(),
-      onTapCancel: widget.onPressEnd,
+      onPointerDown: (_) => widget.onPressStart(),
+      onPointerUp: (_) => widget.onPressEnd(),
+      onPointerCancel: (_) => widget.onPressEnd(),
       child: SizedBox(
         width: 100,
         height: 100,

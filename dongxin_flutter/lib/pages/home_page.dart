@@ -5,6 +5,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/prompt_item.dart';
 import '../services/dialog_service.dart';
@@ -36,6 +39,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
   ];
 
   final TextEditingController _textController = TextEditingController();
+  final stt.SpeechToText _iosSpeech = stt.SpeechToText();
 
   StreamSubscription<DialogEvent>? _dialogSub;
 
@@ -46,6 +50,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
   bool _requestingMicPermission = false;
   bool _engineStarting = false;
   bool _pendingStop = false;
+  bool _didClearForCurrentPress = false;
   String _speechStatus = '正在初始化语音...';
   Timer? _stopDelayTimer;
 
@@ -74,8 +79,12 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
   void dispose() {
     _dialogSub?.cancel();
     _stopDelayTimer?.cancel();
-    DialogService.destroy();
-    DialogService.dispose();
+    if (Platform.isIOS) {
+      _iosSpeech.cancel();
+    } else {
+      DialogService.destroy();
+      DialogService.dispose();
+    }
     _textController.dispose();
     super.dispose();
   }
@@ -95,39 +104,115 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
     if (_speechInitializing || _speechReady) return;
     _speechInitializing = true;
     try {
-      final uri = Uri.parse('https://www.pianai.love/api/voice/dialog_config');
-      final request = await HttpClient().getUrl(uri);
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final decoded = jsonDecode(body);
-        if (decoded is Map && decoded['code'] == 0 && decoded['data'] is Map) {
-          final data = decoded['data'] as Map;
-          _dialogAppId = (data['app_id'] ?? _dialogAppId).toString();
-          _dialogAppKey = (data['app_key'] ?? _dialogAppKey).toString();
-          _dialogToken = (data['token'] ?? _dialogToken).toString();
-          _dialogResourceId = (data['resource_id'] ?? _dialogResourceId)
-              .toString();
-        }
+      if (Platform.isIOS) {
+        final ok = await _iosSpeech.initialize(
+          onStatus: _handleIosSpeechStatus,
+          onError: _handleIosSpeechError,
+          finalTimeout: const Duration(milliseconds: 300),
+          debugLogging: false,
+        );
+        if (!mounted) return;
+        setState(() {
+          _speechReady = ok;
+          _speechStatus = ok
+              ? '按住开始说，松开结束'
+              : '语音引擎初始化失败';
+        });
+        return;
       }
-    } catch (_) {}
 
-    final ok = await DialogService.init(
-      appId: _dialogAppId,
-      appKey: _dialogAppKey,
-      token: _dialogToken,
-      resourceId: _dialogResourceId,
-      uid: 'dongxin_user',
-    );
+      try {
+        final uri = Uri.parse('https://www.pianai.love/api/voice/dialog_config');
+        final request = await HttpClient().getUrl(uri);
+        final response = await request.close();
+        if (response.statusCode == 200) {
+          final body = await response.transform(utf8.decoder).join();
+          final decoded = jsonDecode(body);
+          if (decoded is Map && decoded['code'] == 0 && decoded['data'] is Map) {
+            final data = decoded['data'] as Map;
+            _dialogAppId = (data['app_id'] ?? _dialogAppId).toString();
+            _dialogAppKey = (data['app_key'] ?? _dialogAppKey).toString();
+            _dialogToken = (data['token'] ?? _dialogToken).toString();
+            _dialogResourceId = (data['resource_id'] ?? _dialogResourceId)
+                .toString();
+          }
+        }
+      } catch (_) {}
 
-    _dialogSub = DialogService.events.listen(_handleDialogEvent);
+      final ok = await DialogService.init(
+        appId: _dialogAppId,
+        appKey: _dialogAppKey,
+        token: _dialogToken,
+        resourceId: _dialogResourceId,
+        uid: 'dongxin_user',
+      );
 
+      _dialogSub ??= DialogService.events.listen(_handleDialogEvent);
+
+      if (!mounted) return;
+      setState(() {
+        _speechReady = ok;
+        _speechStatus = ok
+            ? '按住开始说，松开结束'
+            : (DialogService.lastError ?? '语音引擎初始化失败');
+      });
+    } catch (e) {
+      DialogService.lastError = 'init: $e';
+      if (mounted) {
+        setState(() {
+          _speechReady = false;
+          _speechStatus = DialogService.lastError ?? '语音引擎初始化失败';
+        });
+      }
+    } finally {
+      _speechInitializing = false;
+    }
+  }
+
+  void _handleIosSpeechStatus(String status) {
+    if (!mounted) return;
+    if (status == 'listening') {
+      setState(() {
+        _engineStarting = false;
+        _isListening = true;
+        _speechStatus = '正在听你说...';
+      });
+      return;
+    }
+
+    if (status == 'done' || status == 'notListening') {
+      setState(() {
+        _pendingStop = false;
+        _engineStarting = false;
+        _isListening = false;
+        _didClearForCurrentPress = false;
+        _speechStatus = _input.trim().isEmpty ? '没听清，再试一次' : '载荷已装填，可以发射了';
+      });
+    }
+  }
+
+  void _handleIosSpeechError(SpeechRecognitionError error) {
     if (!mounted) return;
     setState(() {
-      _speechReady = ok;
-      _speechStatus = ok ? '按住开始说，松开结束' : '语音引擎初始化失败';
+      _pendingStop = false;
+      _engineStarting = false;
+      _isListening = false;
+      _didClearForCurrentPress = false;
+      _speechStatus = '语音识别失败，请重试';
     });
-    _speechInitializing = false;
+  }
+
+  void _handleIosSpeechResult(SpeechRecognitionResult result) {
+    if (!mounted) return;
+    final text = result.recognizedWords.trim();
+    if (text.isEmpty) return;
+    _textController.text = text;
+    _textController.selection = TextSelection.fromPosition(
+      TextPosition(offset: text.length),
+    );
+    setState(() {
+      _speechStatus = result.finalResult ? '载荷已装填，可以发射了' : '识别中：$text';
+    });
   }
 
   void _handleDialogEvent(DialogEvent event) {
@@ -146,7 +231,10 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
       case 'asr_start':
         setState(() {
           _engineStarting = false;
-          _textController.text = '';
+          if (!_didClearForCurrentPress) {
+            _textController.text = '';
+            _didClearForCurrentPress = true;
+          }
           _speechStatus = '正在听你说...';
         });
         if (_pendingStop) {
@@ -163,6 +251,9 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
           setState(() {
             _speechStatus = '识别中：$text';
           });
+          if (_pendingStop) {
+            _scheduleStop();
+          }
         }
         break;
       case 'asr_end':
@@ -170,6 +261,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
           _pendingStop = false;
           _engineStarting = false;
           _isListening = false;
+          _didClearForCurrentPress = false;
           _speechStatus = _input.trim().isEmpty ? '没听清，再试一次' : '载荷已装填，可以发射了';
         });
         break;
@@ -178,6 +270,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
           _pendingStop = false;
           _engineStarting = false;
           _isListening = false;
+          _didClearForCurrentPress = false;
           _speechStatus = _input.trim().isEmpty ? '已停止录音' : '载荷已装填，可以发射了';
         });
         break;
@@ -186,7 +279,8 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
           _pendingStop = false;
           _engineStarting = false;
           _isListening = false;
-          _speechStatus = '语音识别失败，请重试';
+          _didClearForCurrentPress = false;
+          _speechStatus = DialogService.lastError ?? '语音识别失败，请重试';
         });
         break;
     }
@@ -196,11 +290,20 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
     if (_requestingMicPermission) return;
     _requestingMicPermission = true;
     try {
-      var status = await Permission.microphone.status;
-      if (!status.isGranted) {
-        status = await Permission.microphone.request();
+      var micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        micStatus = await Permission.microphone.request();
       }
-      _micPermissionGranted = status.isGranted;
+
+      var speechStatus = PermissionStatus.granted;
+      if (Platform.isIOS) {
+        speechStatus = await Permission.speech.status;
+        if (!speechStatus.isGranted) {
+          speechStatus = await Permission.speech.request();
+        }
+      }
+
+      _micPermissionGranted = micStatus.isGranted && speechStatus.isGranted;
       if (_micPermissionGranted) {
         await _initDialogSpeech();
         if (mounted && !_speechReady) {
@@ -215,8 +318,10 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('需要麦克风权限才能语音输入')));
       setState(() {
-        _speechStatus = status.isPermanentlyDenied
-            ? '麦克风权限被永久拒绝，请到系统设置开启'
+        final deniedForever = micStatus.isPermanentlyDenied ||
+            (Platform.isIOS && speechStatus.isPermanentlyDenied);
+        _speechStatus = deniedForever
+            ? '语音权限被永久拒绝，请到系统设置开启'
             : '请先允许麦克风权限';
       });
     } finally {
@@ -227,25 +332,66 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
   String _extractAsrText(String raw) {
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) {
-        final results = decoded['results'];
-        if (results is List && results.isNotEmpty) {
-          final first = results.first;
-          if (first is Map &&
-              (first['text'] ?? '').toString().trim().isNotEmpty) {
-            return first['text'].toString().trim();
-          }
-        }
-        final text = (decoded['text'] ?? '').toString().trim();
-        if (text.isNotEmpty) return text;
-      }
+      final extracted = _extractBestText(decoded);
+      if (extracted.isNotEmpty) return extracted;
     } catch (_) {
       return raw.trim();
     }
     return '';
   }
 
+  String _extractBestText(dynamic value) {
+    if (value == null) return '';
+
+    if (value is String) {
+      final text = value.trim();
+      if (text.isEmpty) return '';
+      if (text.startsWith('{') || text.startsWith('[')) return '';
+      return text;
+    }
+
+    if (value is List) {
+      for (final item in value) {
+        final text = _extractBestText(item);
+        if (text.isNotEmpty) return text;
+      }
+      return '';
+    }
+
+    if (value is Map) {
+      const preferredKeys = [
+        'text',
+        'utterance',
+        'utterances',
+        'result',
+        'results',
+        'payload_msg',
+        'message',
+        'content',
+      ];
+
+      for (final key in preferredKeys) {
+        if (value.containsKey(key)) {
+          final text = _extractBestText(value[key]);
+          if (text.isNotEmpty) return text;
+        }
+      }
+
+      for (final entry in value.entries) {
+        final text = _extractBestText(entry.value);
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
+  }
+
   Future<void> _toggleMic() async {
+    if (Platform.isIOS) {
+      await _startIosSpeech();
+      return;
+    }
+
     if (!_micPermissionGranted) {
       await _ensureMicPermission();
     }
@@ -298,6 +444,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
         _pendingStop = false;
         _engineStarting = false;
         _isListening = false;
+        _didClearForCurrentPress = false;
         _speechStatus = DialogService.lastError ?? '启动识别失败';
       });
     }
@@ -305,6 +452,7 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
 
   Future<void> _startMicPress() async {
     if (_isListening || _engineStarting) return;
+    _didClearForCurrentPress = false;
     if (!_micPermissionGranted) {
       await _ensureMicPermission();
     }
@@ -323,6 +471,10 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
         _speechStatus = '正在整理你刚刚说的话...';
       });
     }
+    if (Platform.isIOS) {
+      _scheduleStop();
+      return;
+    }
     if (_isListening) {
       _scheduleStop();
     }
@@ -330,9 +482,65 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
 
   void _scheduleStop() {
     _stopDelayTimer?.cancel();
-    _stopDelayTimer = Timer(const Duration(milliseconds: 900), () async {
-      await DialogService.stop();
-    });
+    _stopDelayTimer = Timer(
+      Duration(milliseconds: Platform.isIOS ? 320 : 1400),
+      () async {
+        if (Platform.isIOS) {
+          await _iosSpeech.stop();
+        } else {
+          await DialogService.stop();
+        }
+      },
+    );
+  }
+
+  Future<void> _startIosSpeech() async {
+    if (!_micPermissionGranted) {
+      await _ensureMicPermission();
+    }
+    if (!_micPermissionGranted) return;
+
+    if (!_speechReady) {
+      await _initDialogSpeech();
+    }
+    if (!_speechReady) {
+      if (mounted) {
+        setState(() {
+          _speechStatus = '语音引擎未就绪';
+        });
+      }
+      return;
+    }
+
+    try {
+      setState(() {
+        _pendingStop = false;
+        _engineStarting = true;
+        _isListening = false;
+        _textController.text = '';
+        _speechStatus = '正在启动语音识别...';
+      });
+
+      await _iosSpeech.listen(
+        onResult: _handleIosSpeechResult,
+        localeId: 'zh_CN',
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+        listenOptions: stt.SpeechListenOptions(
+          partialResults: true,
+          listenMode: stt.ListenMode.dictation,
+          cancelOnError: false,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _pendingStop = false;
+        _engineStarting = false;
+        _isListening = false;
+        _speechStatus = '语音识别失败，请重试';
+      });
+    }
   }
 
   Future<void> _launch() async {
@@ -340,7 +548,11 @@ class _DongxinHomePageState extends State<DongxinHomePage> {
     if (input.isEmpty) return;
 
     if (_isListening) {
-      await DialogService.stop();
+      if (Platform.isIOS) {
+        await _iosSpeech.stop();
+      } else {
+        await DialogService.stop();
+      }
       if (!mounted) return;
       setState(() => _isListening = false);
     }
