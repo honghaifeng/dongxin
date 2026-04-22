@@ -1,0 +1,45 @@
+<svg width="220" height="360" viewBox="0 0 220 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bodyGrad" x1="110" y1="34" x2="110" y2="252" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5FAFF"/>
+      <stop offset="0.48" stop-color="#B9D8FF"/>
+      <stop offset="1" stop-color="#6FA9FF"/>
+    </linearGradient>
+    <linearGradient id="noseGrad" x1="110" y1="0" x2="110" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD978"/>
+      <stop offset="1" stop-color="#FF8A62"/>
+    </linearGradient>
+    <linearGradient id="wingLeft" x1="28" y1="170" x2="108" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4E7DFF"/>
+      <stop offset="1" stop-color="#84C7FF"/>
+    </linearGradient>
+    <linearGradient id="wingRight" x1="192" y1="170" x2="112" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4E7DFF"/>
+      <stop offset="1" stop-color="#84C7FF"/>
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="110" y1="242" x2="110" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4B0"/>
+      <stop offset="0.35" stop-color="#FFD66E"/>
+      <stop offset="0.72" stop-color="#FF9158"/>
+      <stop offset="1" stop-color="#FF5E66" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="35" y="230" width="150" height="130" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+
+  <ellipse cx="110" cy="290" rx="54" ry="24" fill="#FFC35C" fill-opacity="0.62" filter="url(#glow)"/>
+
+  <path d="M110 0C145 28 164 80 164 136V196C164 231 140 258 110 258C80 258 56 231 56 196V136C56 80 75 28 110 0Z" fill="url(#bodyGrad)"/>
+  <path d="M110 0C132 17 149 47 157 82H63C71 47 88 17 110 0Z" fill="url(#noseGrad)"/>
+  <path d="M56 142L18 228L74 205L82 154L56 142Z" fill="url(#wingLeft)"/>
+  <path d="M164 142L202 228L146 205L138 154L164 142Z" fill="url(#wingRight)"/>
+  <path d="M82 208L52 274L94 248L100 214L82 208Z" fill="#4B68D3"/>
+  <path d="M138 208L168 274L126 248L120 214L138 208Z" fill="#4B68D3"/>
+  <rect x="96" y="248" width="28" height="34" rx="12" fill="#2B4B85"/>
+  <circle cx="110" cy="118" r="24" fill="#183766"/>
+  <circle cx="110" cy="118" r="16" fill="#6EE4FF"/>
+  <path d="M88 184C88 171.85 97.85 162 110 162C122.15 162 132 171.85 132 184V198H88V184Z" fill="#183766" fill-opacity="0.7"/>
+  <path d="M110 262C126 262 138 274 138 290C138 307 124 325 110 344C96 325 82 307 82 290C82 274 94 262 110 262Z" fill="url(#flameGrad)"/>
+  <path d="M110 272C119 272 126 279 126 289C126 299 118 310 110 320C102 310 94 299 94 289C94 279 101 272 110 272Z" fill="#FFF2A7"/>
+</svg>

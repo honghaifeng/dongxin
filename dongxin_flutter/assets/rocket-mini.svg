@@ -1,0 +1,27 @@
+<svg width="80" height="132" viewBox="0 0 80 132" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="miniBody" x1="40" y1="14" x2="40" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6FAFF"/>
+      <stop offset="1" stop-color="#7AB6FF"/>
+    </linearGradient>
+    <linearGradient id="miniNose" x1="40" y1="0" x2="40" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD978"/>
+      <stop offset="1" stop-color="#FF8E66"/>
+    </linearGradient>
+    <linearGradient id="miniFlame" x1="40" y1="92" x2="40" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF0A7"/>
+      <stop offset="0.55" stop-color="#FFB85F"/>
+      <stop offset="1" stop-color="#FF5D63" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M40 0C54 12 62 32 62 54V72C62 86 52 96 40 96C28 96 18 86 18 72V54C18 32 26 12 40 0Z" fill="url(#miniBody)"/>
+  <path d="M40 0C49 7 56 16 59 28H21C24 16 31 7 40 0Z" fill="url(#miniNose)"/>
+  <path d="M18 56L4 88L25 79L28 61L18 56Z" fill="#4F7EFF"/>
+  <path d="M62 56L76 88L55 79L52 61L62 56Z" fill="#4F7EFF"/>
+  <path d="M28 80L18 104L33 95L35 82L28 80Z" fill="#3758C8"/>
+  <path d="M52 80L62 104L47 95L45 82L52 80Z" fill="#3758C8"/>
+  <rect x="35" y="92" width="10" height="13" rx="5" fill="#26447B"/>
+  <circle cx="40" cy="46" r="10" fill="#163663"/>
+  <circle cx="40" cy="46" r="6.5" fill="#70E3FF"/>
+  <path d="M40 98C47 98 53 104 53 111C53 119 47 126 40 132C33 126 27 119 27 111C27 104 33 98 40 98Z" fill="url(#miniFlame)"/>
+</svg>
